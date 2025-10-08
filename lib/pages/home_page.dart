@@ -1,6 +1,8 @@
 import "package:flutter/material.dart";
+import "package:hive_flutter/hive_flutter.dart";
 import "package:to_do_app/components/dialog_box.dart";
 import "package:to_do_app/components/to_do_tile.dart";
+import "package:to_do_app/data/database.dart";
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -12,25 +14,36 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final _controller = TextEditingController();
 
-  // list of todo tasks
-  List toDoList = [
-    ["Make tutorial", true],
-    ["Do exercise", false],
-  ];
+  final _myBox = Hive.box("myBox");
+  ToDoDatabase db = ToDoDatabase();
+
+  @override
+  void initState() {
+    if (_myBox.get("TODOLIST") == null) {
+      db.createInitialData();
+    } else {
+      db.loadData();
+    }
+
+    super.initState();
+  }
 
   void checkBoxChanged(bool? value, int index) {
     setState(() {
-      toDoList[index][1] = !toDoList[index][1];
+      db.toDoList[index][1] = !db.toDoList[index][1];
     });
+    db.updateDatabase();
   }
 
   void saveNewTask() {
     if (_controller.text.trim().isEmpty) return;
 
     setState(() {
-      toDoList.add([_controller.text, false]);
+      db.toDoList.add([_controller.text, false]);
+      _controller.clear();
     });
     Navigator.of(context).pop();
+    db.updateDatabase();
   }
 
   void cancelTask() {
@@ -49,6 +62,13 @@ class _HomePageState extends State<HomePage> {
         );
       },
     );
+  }
+
+  void deleteTask(int index) {
+    setState(() {
+      db.toDoList.removeAt(index);
+    });
+    db.updateDatabase();
   }
 
   @override
@@ -72,16 +92,42 @@ class _HomePageState extends State<HomePage> {
         elevation: 0,
         child: Icon(Icons.add, color: Colors.purple[800], size: 32),
       ),
-      body: ListView.builder(
-        itemCount: toDoList.length,
-        itemBuilder: (context, index) {
-          return ToDoTile(
-            taskName: toDoList[index][0],
-            taskCompleted: toDoList[index][1],
-            onChanged: (value) => checkBoxChanged(value, index),
-          );
-        },
-      ),
+      body: db.toDoList.isNotEmpty
+          ? ListView.builder(
+              itemCount: db.toDoList.length,
+              itemBuilder: (context, index) {
+                return ToDoTile(
+                  taskName: db.toDoList[index][0],
+                  taskCompleted: db.toDoList[index][1],
+                  onChanged: (value) => checkBoxChanged(value, index),
+                  deleteTask: (context) => deleteTask(index),
+                );
+              },
+            )
+          : Padding(
+              padding: const EdgeInsets.only(top: 40),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.inbox, size: 48, color: Colors.grey[600]),
+                    SizedBox(height: 10),
+                    Text(
+                      "Task is empty",
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Color.fromARGB(255, 167, 167, 167),
+                      ),
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      "Tap + to add a task",
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }
